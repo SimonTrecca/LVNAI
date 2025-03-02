@@ -36,7 +36,7 @@ LVNAI is a voice-powered note-taking application designed to automatically creat
 ![image](https://github.com/user-attachments/assets/b3e02f4f-7cea-4968-807c-48e60b3fb254)
 
 4. **Compile the project and set up the build folder with the files needed:**
-- The folder should look something like this, with the folders containing your favorite model of choice.
+- The folder should look something like this, with the folders containing your favorite model of choice. The models need to be named model.bin (for whisper.cpp) and model.gguf (for llama.cpp)
   
   ![image](https://github.com/user-attachments/assets/57b0c6a9-fb60-4a61-b01d-9c04d8f3fb2e)
 
