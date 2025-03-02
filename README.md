@@ -8,7 +8,7 @@ Converts speech to text and processes it using local AI models.
 - [Models](#models)
 
 ## Introduction
-LVNAI is a voice-powered note-taking application designed to automatically create structured and proper notes from audio recordings. By running inference on a local large language model (LLM), LVNAI transforms raw audio into concise and well-organized notes.
+LVNAI is a voice-powered note-taking application designed to automatically create structured and proper notes from audio recordings. By running inference on a local large language model (LLM), LVNAI transforms raw audio into concise and well-organized notes. This is by no measure state of the art, and it's just a fun project to help me in note-taking.
 
 ## Features
 - **Automatic Note Creation:** Converts audio recordings into structured text notes.
