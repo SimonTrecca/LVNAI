@@ -3,33 +3,31 @@
 AudioNormalizer::AudioNormalizer() {}
 
 void AudioNormalizer::write_wav_header(std::ofstream &out_file, int sample_rate, int channels,
-                 int bits_per_sample, int data_size) {
-  out_file.write("RIFF", 4);
-  int chunk_size = 36 + data_size;
-  out_file.write(reinterpret_cast<const char *>(&chunk_size), 4);
-  out_file.write("WAVE", 4);
+                                       int bits_per_sample, int data_size) {
+    out_file.write("RIFF", 4);
+    int chunk_size = 36 + data_size;
+    out_file.write(reinterpret_cast<const char *>(&chunk_size), 4);
+    out_file.write("WAVE", 4);
 
-  // fmt subchunk
-  out_file.write("fmt ", 4);
-  int subchunk1_size = 16;
-  short audio_format = 1;
-  out_file.write(reinterpret_cast<const char *>(&subchunk1_size), 4);
-  out_file.write(reinterpret_cast<const char *>(&audio_format), 2);
-  out_file.write(reinterpret_cast<const char *>(&channels), 2);
-  out_file.write(reinterpret_cast<const char *>(&sample_rate), 4);
-  int byte_rate = sample_rate * channels * bits_per_sample / 8;
-  out_file.write(reinterpret_cast<const char *>(&byte_rate), 4);
-  short block_align = channels * bits_per_sample / 8;
-  out_file.write(reinterpret_cast<const char *>(&block_align), 2);
-  out_file.write(reinterpret_cast<const char *>(&bits_per_sample), 2);
+    // fmt subchunk
+    out_file.write("fmt ", 4);
+    int subchunk1_size = 16;
+    short audio_format = 1;
+    out_file.write(reinterpret_cast<const char *>(&subchunk1_size), 4);
+    out_file.write(reinterpret_cast<const char *>(&audio_format), 2);
+    out_file.write(reinterpret_cast<const char *>(&channels), 2);
+    out_file.write(reinterpret_cast<const char *>(&sample_rate), 4);
+    int byte_rate = sample_rate * channels * bits_per_sample / 8;
+    out_file.write(reinterpret_cast<const char *>(&byte_rate), 4);
+    short block_align = channels * bits_per_sample / 8;
+    out_file.write(reinterpret_cast<const char *>(&block_align), 2);
+    out_file.write(reinterpret_cast<const char *>(&bits_per_sample), 2);
 
-  // data subchunk
-  out_file.write("data", 4);
-  out_file.write(reinterpret_cast<const char *>(&data_size), 4);
+    // data subchunk
+    out_file.write("data", 4);
+    out_file.write(reinterpret_cast<const char *>(&data_size), 4);
 }
 
-
-// Function to handle audio transcoding
 void AudioNormalizer::transcode_audio(const char *input_filename, const char *output_filename) {
 
     AVFormatContext *input_format_ctx = nullptr;
@@ -96,7 +94,7 @@ void AudioNormalizer::transcode_audio(const char *input_filename, const char *ou
         return;
     }
 
-    // Prepare output WAV file
+    // Prepare output WAV file and write a placeholder header.
     std::ofstream output_file(output_filename, std::ios::binary);
     int bits_per_sample = 16;
     int data_size = 0;
@@ -110,7 +108,7 @@ void AudioNormalizer::transcode_audio(const char *input_filename, const char *ou
     int output_linesize;
     av_samples_alloc(output_data, &output_linesize, 1, max_dst_nb_samples, AV_SAMPLE_FMT_S16, 0);
 
-    // Read, decode, and resample audio packets
+    // Main loop: read packets, decode, and resample
     while (av_read_frame(input_format_ctx, &packet) >= 0) {
         if (packet.stream_index == stream_index) {
             if (avcodec_send_packet(decoder_ctx, &packet) == 0) {
@@ -123,7 +121,7 @@ void AudioNormalizer::transcode_audio(const char *input_filename, const char *ou
                         continue;
                     }
 
-                    // Calculate buffer size and write to output file
+                    // Write the resampled data to the output file.
                     int buffer_size = av_samples_get_buffer_size(nullptr, 1, output_samples, AV_SAMPLE_FMT_S16, 1);
                     output_file.write(reinterpret_cast<const char *>(output_data[0]), buffer_size);
                     data_size += buffer_size;
@@ -133,7 +131,31 @@ void AudioNormalizer::transcode_audio(const char *input_filename, const char *ou
         av_packet_unref(&packet);
     }
 
-    // Update the WAV header with the correct data size
+    // Flush the decoder: send a NULL packet.
+    avcodec_send_packet(decoder_ctx, nullptr);
+    while (avcodec_receive_frame(decoder_ctx, frame) == 0) {
+        int output_samples = swr_convert(swr_ctx, output_data, max_dst_nb_samples,
+                                         (const uint8_t **)frame->data, frame->nb_samples);
+        if (output_samples < 0) {
+            std::cerr << "Error during resampling (flush phase).\n";
+            break;
+        }
+        int buffer_size = av_samples_get_buffer_size(nullptr, 1, output_samples, AV_SAMPLE_FMT_S16, 1);
+        output_file.write(reinterpret_cast<const char *>(output_data[0]), buffer_size);
+        data_size += buffer_size;
+    }
+
+    // Flush the resampler: keep calling swr_convert until no more samples are output.
+    while (true) {
+        int output_samples = swr_convert(swr_ctx, output_data, max_dst_nb_samples, nullptr, 0);
+        if (output_samples <= 0)
+            break;
+        int buffer_size = av_samples_get_buffer_size(nullptr, 1, output_samples, AV_SAMPLE_FMT_S16, 1);
+        output_file.write(reinterpret_cast<const char *>(output_data[0]), buffer_size);
+        data_size += buffer_size;
+    }
+
+    // Update the WAV header with the correct data size.
     output_file.seekp(0, std::ios::beg);
     write_wav_header(output_file, 16000, 1, bits_per_sample, data_size);
 
